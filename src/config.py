@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     
     # API Keys
     gemini_api_key: str
-    openai_api_key: str
+    openai_api_key: Optional[str] = None
     news_api_key: Optional[str] = None
     
     # Reddit API (optional)
