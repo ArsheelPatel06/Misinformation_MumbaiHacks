@@ -82,15 +82,16 @@ const NewsVerifier = () => {
         setVerificationResult(null);
 
         try {
-            const payload = {
-                text: activeTab === 'text' ? inputText : '',
-                source_url: activeTab === 'url' ? inputUrl : null
-            };
+            // Prepare payload
+            // If URL mode, we send it as text prompt for now as per plan
+            const textToVerify = activeTab === 'text'
+                ? inputText
+                : `Verify this article: ${inputUrl}`;
 
-            // If URL mode, we might need to fetch content first or pass URL to backend
-            // For now, assuming backend handles text verification primarily
-            // If URL is provided but no text, we might need a different endpoint or logic
-            // But let's try sending to /api/verify
+            const payload = {
+                text: textToVerify,
+                audience_level: 'general'
+            };
 
             const response = await fetch('http://localhost:8000/api/verify', {
                 method: 'POST',
@@ -102,13 +103,23 @@ const NewsVerifier = () => {
 
             if (response.ok) {
                 const data = await response.json();
-                setVerificationResult(data);
+                // Map backend response to UI format
+                setVerificationResult({
+                    rating: data.verdict === 'true' ? 'True' : data.verdict === 'false' ? 'False' : 'Unverified',
+                    explanation: data.explanation.summary,
+                    sources: data.explanation.citations || []
+                });
             } else {
                 throw new Error('Verification failed');
             }
         } catch (error) {
             console.error(error);
             // Handle error state
+            setVerificationResult({
+                rating: 'Error',
+                explanation: 'Failed to verify content. Please try again later.',
+                sources: []
+            });
         } finally {
             setLoading(false);
         }

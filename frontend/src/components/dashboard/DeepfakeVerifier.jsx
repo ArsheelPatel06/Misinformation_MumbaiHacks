@@ -60,19 +60,54 @@ const DeepfakeVerifier = () => {
             const uploadData = await uploadRes.json();
             const mediaId = uploadData.media_id;
 
-            // 2. Analyze File
+            // 2. Start Analysis
             const analyzeRes = await fetch(`http://localhost:8000/api/deepfake/analyze/${mediaId}`, {
                 method: 'POST',
             });
 
-            if (!analyzeRes.ok) throw new Error('Analysis failed');
-            const analyzeData = await analyzeRes.json();
+            if (!analyzeRes.ok) throw new Error('Analysis start failed');
 
-            setResult(analyzeData);
+            // 3. Poll for Results
+            const pollInterval = setInterval(async () => {
+                try {
+                    const resultRes = await fetch(`http://localhost:8000/api/deepfake/results/${mediaId}`);
+                    if (!resultRes.ok) return;
+
+                    const data = await resultRes.json();
+
+                    if (data.analysis_status === 'completed') {
+                        clearInterval(pollInterval);
+                        setResult({
+                            analysis: {
+                                is_deepfake: data.is_deepfake,
+                                confidence: Math.round(data.confidence * 100),
+                                explanation: data.analysis_report, // Map detailed reasoning
+                                verdict: data.verdict
+                            }
+                        });
+                        setLoading(false);
+                    } else if (data.analysis_status === 'failed') {
+                        clearInterval(pollInterval);
+                        setError(data.analysis_report || 'Analysis failed');
+                        setLoading(false);
+                    }
+                } catch (err) {
+                    console.error("Polling error", err);
+                }
+            }, 2000); // Poll every 2 seconds
+
+            // Timeout after 60 seconds
+            setTimeout(() => {
+                clearInterval(pollInterval);
+                if (loading) {
+                    setLoading(false);
+                    setError('Analysis timed out. Please try again.');
+                }
+            }, 60000);
+
         } catch (err) {
             console.error(err);
             setError(err.message || 'Something went wrong during analysis');
-        } finally {
             setLoading(false);
         }
     };

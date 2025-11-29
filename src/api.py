@@ -283,9 +283,14 @@ async def upload_media(
 async def analyze_media(
     media_id: int,
     background_tasks: BackgroundTasks,
-    use_consensus: bool = True,
+    use_consensus: bool = None,  # Changed to None to check settings
     db: Session = Depends(get_db)
 ):
+    """Start deepfake analysis on uploaded media"""
+    # Use settings default if not provided
+    if use_consensus is None:
+        from src.config import settings
+        use_consensus = settings.enable_consensus_mode
     """Start deepfake analysis on uploaded media"""
     media = db.query(Media).filter(Media.id == media_id).first()
     
@@ -455,6 +460,36 @@ async def get_all_deepfake_results(
             for m in media_list
         ]
     }
+
+
+@app.delete("/api/history")
+async def clear_history(db: Session = Depends(get_db)):
+    """Clear all verification history (claims and media)"""
+    try:
+        # Delete dependent tables first to avoid FK issues if enforced
+        db.query(Verification).delete()
+        db.query(Explanation).delete()
+        
+        # Delete main tables
+        db.query(Claim).delete()
+        db.query(Media).delete()
+        
+        db.commit()
+        
+        # Clean up upload directory
+        if UPLOAD_DIR.exists():
+            for file in UPLOAD_DIR.glob("*"):
+                if file.is_file():
+                    try:
+                        file.unlink()
+                    except Exception as e:
+                        logger.error(f"Error deleting file {file}: {e}")
+        
+        return {"status": "success", "message": "History cleared successfully"}
+    except Exception as e:
+        logger.error(f"Error clearing history: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

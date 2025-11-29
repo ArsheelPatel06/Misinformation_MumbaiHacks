@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 import json
 import os
+import asyncio
 import tempfile
 from typing import Dict, List, Tuple, Optional
 from pathlib import Path
@@ -48,50 +49,39 @@ class DeepfakeAnalysisResult:
 class ImageDeepfakeDetector:
     """Detect deepfakes in images using AI Vision models"""
     
-    DEEPFAKE_ANALYSIS_PROMPT = """You are an expert in detecting AI-generated and manipulated images (deepfakes).
+    DEEPFAKE_ANALYSIS_PROMPT = """You are a forensic image analyst. Your ONLY job is to find FLAWS in this image. Do not praise its quality.
 
-Analyze this image carefully for signs of manipulation or AI generation:
+    **STEP-BY-STEP ANALYSIS REQUIRED**:
 
-1. **Facial Inconsistencies**:
-   - Unnatural skin texture or lighting
-   - Inconsistent shadows or reflections
-   - Odd eye alignment or blinking patterns
-   - Teeth or facial feature irregularities
-   - Hair-face boundary artifacts
+    1. **HANDS & FINGERS CHECK (CRITICAL)**:
+       - Locate every hand in the image.
+       - COUNT the fingers on each hand.
+       - Check for malformed joints, merging fingers, or impossible grips.
+       - **IF YOU SEE >5 FINGERS, <5 FINGERS (without explanation), OR MERGED FINGERS -> MARK AS FAKE IMMEDIATELY.**
 
-2. **AI Generation Artifacts**:
-   - Blurring or smudging in backgrounds
-   - Repetitive patterns or textures
-   - Inconsistent perspective or geometry
-   - Unnatural color gradients
-   - Missing or distorted fine details (jewelry, text, etc.)
+    2. **EYES & FACE CHECK**:
+       - Zoom in on pupils. Are they perfectly circular?
+       - Check reflections in eyes. Do they match?
+       - Check teeth. are they individual or a solid white bar?
 
-3. **Manipulation Signs**:
-   - Cloning or copy-paste artifacts
-   - Edge inconsistencies
-   - Lighting direction mismatches
-   - Resolution inconsistencies across the image
+    3. **PHYSICS CHECK**:
+       - Shadows: Do they fall in the correct direction?
+       - Reflections: Do they match the object?
 
-4. **Context Clues**:
-   - Physically impossible scenarios
-   - Anatomical impossibilities
-   - Inconsistent environmental elements
+    **VERDICT RULES**:
+    - Any anatomical error (6 fingers, bad teeth) = **FAKE** (Confidence 1.0).
+    - Any strong physics error = **FAKE**.
+    - Perfect lighting but "glossy/plastic" skin = **UNCERTAIN** or **FAKE**.
+    - Only mark **REAL** if you can find NO flaws after deep scrutiny.
 
-Provide your analysis in JSON format:
-{
-  "verdict": "real|fake|uncertain",
-  "confidence": 0.85,
-  "is_deepfake": true,
-  "reasoning": "detailed explanation of your assessment",
-  "artifacts_detected": [
-    {"type": "facial_inconsistency", "description": "...", "severity": "high|medium|low"},
-    {"type": "ai_artifact", "description": "...", "severity": "high|medium|low"}
-  ],
-  "red_flags": ["flag 1", "flag 2"],
-  "authenticity_indicators": ["indicator 1", "indicator 2"]
-}
-
-Be thorough and specific. If uncertain, explain why."""
+    **RESPONSE FORMAT**:
+    {
+      "verdict": "fake" | "real" | "uncertain",
+      "confidence": <float 0.0-1.0>,
+      "is_deepfake": <boolean>,
+      "reasoning": "I counted X fingers on the left hand...",
+      "artifacts_detected": []
+    }"""
 
     async def analyze_with_gemini(self, image_path: str) -> DeepfakeAnalysisResult:
         """Analyze image using Gemini Vision"""
@@ -282,7 +272,7 @@ class VideoDeepfakeDetector:
             prev_frame = None
             frame_count = 0
             
-            while frame_count < 100:  # Analyze first 100 frames
+            while frame_count < 50:  # Analyze first 50 frames (Reduced from 100)
                 ret, frame = cap.read()
                 if not ret:
                     break
@@ -359,8 +349,8 @@ class DeepfakeDetector:
         """Analyze a video for deepfake signs"""
         logger.info(f"Analyzing video: {video_path}")
         
-        # Extract key frames
-        frame_paths = self.video_detector.extract_key_frames(video_path, num_frames=5)
+        # Extract key frames (Reduced to 3 for performance)
+        frame_paths = self.video_detector.extract_key_frames(video_path, num_frames=3)
         
         if not frame_paths:
             return {
@@ -369,24 +359,34 @@ class DeepfakeDetector:
                 "confidence": 0.0
             }
         
-        # Analyze each frame
+        # Analyze frames in parallel using asyncio.gather
+        tasks = [self.analyze_image(frame_path, use_consensus=False) for frame_path in frame_paths]
+        results = await asyncio.gather(*tasks)
+        
         frame_results = []
-        for frame_path in frame_paths:
-            result, _ = await self.analyze_image(frame_path, use_consensus=False)
+        for result, _ in results:
             frame_results.append({
                 "is_deepfake": result.is_deepfake,
                 "confidence": result.confidence,
                 "verdict": result.verdict
             })
         
-        # Check temporal consistency
+        # Check temporal consistency (Reduced to 50 frames in video_detector)
         temporal_analysis = self.video_detector.check_temporal_consistency(video_path)
         
         # Aggregate results
         deepfake_count = sum(1 for r in frame_results if r['is_deepfake'])
-        avg_confidence = np.mean([r['confidence'] for r in frame_results])
+        avg_confidence = np.mean([r['confidence'] for r in frame_results]) if frame_results else 0.0
         
         is_deepfake = deepfake_count >= len(frame_results) / 2  # Majority vote
+        
+        # Clean up temp frames
+        for path in frame_paths:
+            try:
+                os.remove(path)
+                os.rmdir(os.path.dirname(path))
+            except:
+                pass
         
         return {
             "is_deepfake": is_deepfake,

@@ -12,15 +12,40 @@ const ContentChecker = () => {
         setLoading(true);
         setResult(null);
 
-        // Simulate API call for now
-        setTimeout(() => {
-            setLoading(false);
+        try {
+            const payload = {
+                text: `Verify this social media post: ${inputUrl}`,
+                audience_level: 'general'
+            };
+
+            const response = await fetch('http://localhost:8000/api/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setResult({
+                    rating: data.verdict === 'true' ? 'Authentic' : data.verdict === 'false' ? 'Fake/Misleading' : 'Unverified',
+                    explanation: data.explanation.summary,
+                    platform: 'Social Media'
+                });
+            } else {
+                throw new Error('Verification failed');
+            }
+        } catch (error) {
+            console.error(error);
             setResult({
-                rating: 'Unverified',
-                explanation: 'This is a simulation. Backend integration for social media verification is pending.',
+                rating: 'Error',
+                explanation: 'Failed to verify content. Please try again later.',
                 platform: 'Social Media'
             });
-        }, 2000);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

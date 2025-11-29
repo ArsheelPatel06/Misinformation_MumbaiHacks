@@ -42,25 +42,51 @@ const ToolsPage = () => {
 
     const currentTool = tools[toolType] || tools.text;
 
-    const handleVerify = () => {
+    const handleVerify = async () => {
         if (!input) return;
         setLoading(true);
         setResult(null);
 
-        // Simulate API call
-        setTimeout(() => {
-            setLoading(false);
-            setResult({
-                status: 'Verified',
-                score: 85,
-                summary: 'The content appears to be authentic with high confidence. No manipulation detected.',
-                details: [
-                    'Source credibility: High',
-                    'Sentiment: Neutral',
-                    'Fact-check matches: 0'
-                ]
+        try {
+            let textToVerify = input;
+            if (toolType === 'article') textToVerify = `Verify this article: ${input}`;
+            else if (toolType === 'url') textToVerify = `Verify this website: ${input}`;
+            else if (toolType === 'youtube') textToVerify = `Verify this YouTube video: ${input}`;
+
+            const payload = {
+                text: textToVerify,
+                audience_level: 'general'
+            };
+
+            const response = await fetch('http://localhost:8000/api/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
             });
-        }, 1500);
+
+            if (response.ok) {
+                const data = await response.json();
+                setResult({
+                    status: data.verdict === 'true' ? 'Verified' : data.verdict === 'false' ? 'False' : 'Uncertain',
+                    score: Math.round(data.credibility_score * 100),
+                    summary: data.explanation.summary,
+                    details: [
+                        `Confidence: ${Math.round(data.confidence * 100)}%`,
+                        `Verdict: ${data.verdict}`,
+                        `Sources: ${data.explanation.citations ? data.explanation.citations.length : 0}`
+                    ]
+                });
+            } else {
+                throw new Error('Verification failed');
+            }
+        } catch (error) {
+            console.error(error);
+            // Handle error
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

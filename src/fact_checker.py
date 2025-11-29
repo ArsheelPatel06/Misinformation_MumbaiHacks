@@ -41,38 +41,36 @@ class VerificationResult:
 class FactChecker:
     """Verify claims using AI models and external sources"""
     
-    VERIFICATION_PROMPT = """You are an expert fact-checker verifying claims during global crises.
+    VERIFICATION_PROMPT = """You are an expert fact-checker verifying claims during global crises. Your goal is to provide a definitive verdict based on logic, general knowledge, and the provided context.
 
-Analyze this claim and determine its veracity:
+    CLAIM: {claim}
 
-CLAIM: {claim}
+    Context:
+    - Crisis Type: {crisis_type}
+    - Source: {source}
+    - Entities: {entities}
 
-Context:
-- Crisis Type: {crisis_type}
-- Source: {source}
-- Entities: {entities}
+    **INSTRUCTIONS**:
+    1. **Analyze the Claim**: Break it down into verifiable facts.
+    2. **Check Consistency**: Does it contradict known scientific principles, historical facts, or reliable news?
+    3. **Evaluate Source**: Is the source (if provided) generally credible?
+    4. **Determine Verdict**:
+       - **TRUE**: Factually accurate and supported by evidence.
+       - **FALSE**: Factually incorrect, debunked, or physically impossible.
+       - **MIXED**: Contains elements of truth but is misleading or partially wrong.
+       - **UNVERIFIABLE**: Not enough information exists to prove or disprove (use sparingly).
 
-Your task:
-1. Assess if the claim is TRUE, FALSE, MIXED (partially true), or UNVERIFIABLE
-2. Provide confidence score (0.0-1.0)
-3. Explain your reasoning with specific evidence
-4. Identify what sources would support or contradict this claim
+    **RESPONSE FORMAT**:
+    Respond with a valid JSON object. Do not include markdown formatting.
 
-Consider:
-- Is this claim factually accurate?
-- Are there credible sources that verify or contradict it?
-- Is the claim taken out of context?
-- Are there any logical fallacies or misleading elements?
-
-Respond in JSON format:
-{{
-  "verdict": "true|false|mixed|unverifiable",
-  "confidence": 0.85,
-  "reasoning": "detailed explanation of your assessment",
-  "supporting_evidence": ["evidence point 1", "evidence point 2"],
-  "contradicting_evidence": ["contradiction 1", "contradiction 2"],
-  "recommended_sources": ["source type 1", "source type 2"]
-}}"""
+    {{
+      "verdict": "true" | "false" | "mixed" | "unverifiable",
+      "confidence": <float between 0.0 and 1.0>,
+      "reasoning": "<concise explanation citing specific reasons>",
+      "supporting_evidence": ["<point 1>", "<point 2>"],
+      "contradicting_evidence": ["<point 1>", "<point 2>"],
+      "recommended_sources": ["<source 1>", "<source 2>"]
+    }}"""
 
     async def verify_with_gemini(self, claim: ExtractedClaim) -> VerificationResult:
         """Verify claim using Gemini"""
