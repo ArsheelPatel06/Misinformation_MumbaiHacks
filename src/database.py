@@ -144,6 +144,24 @@ class Media(Base):
     user_description = Column(Text, nullable=True)  # User's description of the media
 
 
+class Feedback(Base):
+    """User feedback for active learning"""
+    __tablename__ = "feedback"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Link to verification or deepfake analysis
+    claim_id = Column(Integer, nullable=True)
+    media_id = Column(Integer, nullable=True)
+    
+    # Feedback content
+    is_correct = Column(Boolean, nullable=False)  # True = Model was right, False = Model was wrong
+    correction_text = Column(Text, nullable=True)  # User's correction/explanation
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Database setup
 engine = create_engine(
     settings.database_url,

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileVideo, Image as ImageIcon, Loader2, AlertCircle, CheckCircle, XCircle, Shield } from 'lucide-react';
+import { Upload, FileVideo, Image as ImageIcon, Loader2, AlertCircle, CheckCircle, XCircle, Shield, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DeepfakeVerifier = () => {
@@ -78,6 +78,7 @@ const DeepfakeVerifier = () => {
                     if (data.analysis_status === 'completed') {
                         clearInterval(pollInterval);
                         setResult({
+                            media_id: mediaId,
                             analysis: {
                                 is_deepfake: data.is_deepfake,
                                 confidence: Math.round(data.confidence * 100),
@@ -109,6 +110,23 @@ const DeepfakeVerifier = () => {
             console.error(err);
             setError(err.message || 'Something went wrong during analysis');
             setLoading(false);
+        }
+    };
+
+    const handleFeedback = async (isCorrect) => {
+        if (!result || !result.media_id) return;
+        try {
+            await fetch('http://localhost:8000/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    media_id: result.media_id,
+                    is_correct: isCorrect
+                })
+            });
+            alert('Thanks for your feedback! This helps improve our models.');
+        } catch (err) {
+            console.error('Error submitting feedback:', err);
         }
     };
 
@@ -188,6 +206,25 @@ const DeepfakeVerifier = () => {
                                     <p className="text-gray-300 leading-relaxed">
                                         {result.analysis.explanation}
                                     </p>
+
+                                    {/* Feedback Section */}
+                                    <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+                                        <span className="text-sm text-gray-400">Was this analysis correct?</span>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => handleFeedback(true)}
+                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 text-sm transition-colors"
+                                            >
+                                                <ThumbsUp className="w-4 h-4" /> Yes
+                                            </button>
+                                            <button
+                                                onClick={() => handleFeedback(false)}
+                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm transition-colors"
+                                            >
+                                                <ThumbsDown className="w-4 h-4" /> No
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <button

@@ -101,7 +101,7 @@ const LandingPage = () => {
                     <video
                         ref={videoRef}
                         src="/Model.mp4"
-                        className="w-full h-full object-cover md:object-contain max-w-6xl mx-auto"
+                        className="w-full h-full object-cover md:object-contain max-w-fit-content mx-auto"
                         muted
                         playsInline
                         preload="auto"

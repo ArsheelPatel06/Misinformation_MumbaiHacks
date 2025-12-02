@@ -11,7 +11,8 @@ import os
 import shutil
 from pathlib import Path
 from datetime import datetime
-from src.database import get_db, init_db, Claim, Verification, Explanation, Media
+from pydantic import BaseModel
+from src.database import get_db, init_db, Claim, Verification, Explanation, Media, Feedback
 from src.models import (
     ClaimResponse, VerificationResponse, ExplanationResponse,
     ClaimDetailResponse, VerifyClaimRequest, TrendingClaimsResponse,
@@ -460,6 +461,35 @@ async def get_all_deepfake_results(
             for m in media_list
         ]
     }
+
+
+class FeedbackRequest(BaseModel):
+    claim_id: Optional[int] = None
+    media_id: Optional[int] = None
+    is_correct: bool
+    correction_text: Optional[str] = None
+
+
+@app.post("/api/feedback")
+async def submit_feedback(
+    feedback: FeedbackRequest,
+    db: Session = Depends(get_db)
+):
+    """Submit user feedback for active learning"""
+    try:
+        db_feedback = Feedback(
+            claim_id=feedback.claim_id,
+            media_id=feedback.media_id,
+            is_correct=feedback.is_correct,
+            correction_text=feedback.correction_text
+        )
+        db.add(db_feedback)
+        db.commit()
+        
+        return {"status": "success", "message": "Feedback recorded for future training"}
+    except Exception as e:
+        logger.error(f"Error saving feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/api/history")
